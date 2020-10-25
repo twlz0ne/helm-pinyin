@@ -40,8 +40,14 @@
 
 ;;; Code:
 
+(require 'cl-extra)
 (require 'helm)
 (require 'pinyinlib)
+
+(defcustom helm-pinyin-pattern-max-length 8
+  "Max lenght of pinyin pattern."
+  :group 'helm-pinyin
+  :type 'integer)
 
 
 ;;; functions
@@ -53,19 +59,30 @@
 (defsubst helm-pinyin--mapconcat-pattern (pattern)
   "Transform pinyin string PATTERN in regexp for further fuzzy matching.
 
-Like ‘helm--mapconcat-pattern’ but returns a pinyin regexp.
+Like ‘helm--mapconcat-pattern’ but add pinyin match for the first
+`helm-pinyin-pattern-max-length' characters of pattern.
 E.g: helm.el$
     => \"[^z中]*[z中][^w文]*[w文]$\""
-  (let ((ls (split-string-and-unquote pattern "")))
-    (mapconcat
-     (lambda (c)
-       (if (and (string= c "$")
-                (string-match "$\\'" pattern))
-           c (let ((pinyin-pattern (pinyinlib-build-regexp-string c)))
-               (if (< (length pinyin-pattern) 3)
-                   c
-                 (format "[^%s]*%s" (substring pinyin-pattern 1 -1) pinyin-pattern)))))
-     ls "")))
+  (let ((ls (let ((l (split-string-and-unquote pattern "")))
+              (if (> (length l) helm-pinyin-pattern-max-length)
+                  (cons (cl-subseq l 0 helm-pinyin-pattern-max-length)
+                        (cl-subseq l helm-pinyin-pattern-max-length))
+                (cons l nil)))))
+    (concat
+     (mapconcat
+      (lambda (c)
+        (if (and (string= c "$")
+                 (string-match "$\\'" pattern))
+            c (let ((pinyin-pattern (pinyinlib-build-regexp-string c)))
+                (if (< (length pinyin-pattern) 3)
+                    c
+                  (format "[^%s]*%s" (substring pinyin-pattern 1 -1) pinyin-pattern)))))
+      (car ls) "")
+     (mapconcat (lambda (c)
+                  (if (and (string= c "$")
+                           (string-match "$\\'" pattern))
+                      c (regexp-quote c)))
+                (cdr ls) ""))))
 
 (defun helm-pinyin-mm-get-patterns (pattern)
   "Return a pattern string or a list of predicate/regexp cons.
