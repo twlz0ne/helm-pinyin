@@ -244,7 +244,7 @@ Replaced with:
                            (substring patt (length basedir))
                          patt)))
                   (unless (string-empty-p basename)
-                    (concat basedir
+                    (concat (regexp-quote basedir)
                             "\\("
                             (funcall orig-fn basename)
                             "\\|"
