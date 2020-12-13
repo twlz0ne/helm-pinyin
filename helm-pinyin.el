@@ -231,8 +231,8 @@ Replaced with:
 
 (defun helm-ff--transform-pattern-for-completion@pinyin (orig-fn pattern)
   "Around advice for ‘helmhelm-ff--transform-pattern-for-completion’."
-  (let* ((patts (split-string pattern " "))
-         (basedir (or (helm-basedir (car patts)) "")))
+  (let* ((basedir (or (helm-basedir pattern) ""))
+         (patts (split-string (string-remove-prefix basedir pattern) " ")))
     (mapconcat
      #'identity
      (remove-if
