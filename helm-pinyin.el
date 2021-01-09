@@ -7,7 +7,7 @@
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
-;; Keywords: 
+;; Keywords: tools
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@
 
 ;;; Code:
 
-(require 'cl-extra)
+(require 'cl-lib)
 (require 'helm)
 (require 'pinyinlib)
 
@@ -230,27 +230,30 @@ Replaced with:
              nil))))
 
 (defun helm-ff--transform-pattern-for-completion@pinyin (orig-fn pattern)
-  "Around advice for ‘helmhelm-ff--transform-pattern-for-completion’."
+  "Around advice for ‘helm-ff--transform-pattern-for-completion’."
   (let* ((basedir (or (helm-basedir pattern) ""))
-         (patts (split-string (string-remove-prefix basedir pattern) " ")))
+         (patts (cl-remove-if
+                 (lambda (patt)
+                   (or (string-empty-p patt) (string= patt basedir)))
+                 (split-string (string-remove-prefix basedir pattern) " "))))
     (mapconcat
      #'identity
-     (remove-if
-      (lambda (patt)
-        (or (string-empty-p patt) (string= patt basedir)))
-      (mapcar (lambda (patt)
-                (let ((basename
-                       (if (string-prefix-p basedir patt)
-                           (substring patt (length basedir))
-                         patt)))
-                  (unless (string-empty-p basename)
-                    (concat (regexp-quote basedir)
-                            "\\("
-                            (funcall orig-fn basename)
-                            "\\|"
-                            (helm-pinyin--mapconcat-pattern basename)
-                            "\\)"))))
-              patts))
+     (mapcar (lambda (patt)
+               (let ((basename
+                      (if (string-prefix-p basedir patt)
+                          (substring patt (length basedir))
+                        patt)))
+                 (unless (string-empty-p basename)
+                   (concat (regexp-quote basedir)
+                           "\\("
+                           (string-trim
+                            (substring (funcall orig-fn pattern)
+                                       (length (regexp-quote basedir)))
+                            " ")
+                           "\\|"
+                           (helm-pinyin--mapconcat-pattern basename)
+                           "\\)"))))
+             patts)
      " ")))
 
 (defun helm-find-files@pinyin (orig-fn arg)
