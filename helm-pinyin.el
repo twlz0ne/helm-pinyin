@@ -172,9 +172,7 @@ Replaced with:
                  for iter from 1
                  for fn in matchfns
                  for patts = (cl-case fn
-                               (helm-mm-exact-match
-                                (or (helm-mm-exact-get-pattern helm-pattern)
-                                    helm-pattern))
+                               (helm-mm-exact-match helm-pattern)
                                (helm-pinyin-mm-match
                                 (remove
                                  nil
