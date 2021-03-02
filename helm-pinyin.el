@@ -230,29 +230,30 @@ Replaced with:
 (defun helm-ff--transform-pattern-for-completion@pinyin (orig-fn pattern)
   "Around advice for ‘helm-ff--transform-pattern-for-completion’."
   (let* ((basedir (or (helm-basedir pattern) ""))
-         (patts (cl-remove-if
-                 (lambda (patt)
-                   (or (string-empty-p patt) (string= patt basedir)))
-                 (split-string (string-remove-prefix basedir pattern) " "))))
-    (mapconcat
-     #'identity
-     (mapcar (lambda (patt)
-               (let ((basename
-                      (if (string-prefix-p basedir patt)
-                          (substring patt (length basedir))
-                        patt)))
-                 (unless (string-empty-p basename)
-                   (concat (regexp-quote basedir)
-                           "\\("
-                           (string-trim
-                            (substring (funcall orig-fn pattern)
-                                       (length (regexp-quote basedir)))
-                            " ")
-                           "\\|"
-                           (helm-pinyin--mapconcat-pattern basename)
-                           "\\)"))))
-             patts)
-     " ")))
+         (patts (split-string (string-remove-prefix basedir pattern) " ")))
+    (if (not (cdr patts))
+        (let ((patt1 (car patts)))
+          (concat (regexp-quote basedir)
+                  (if (string-empty-p patt1)
+                      ""
+                    (concat
+                     "\\("
+                     (funcall orig-fn patt1)
+                     "\\|"
+                     (helm-pinyin--mapconcat-pattern patt1)
+                     "\\)"))))
+      (mapconcat
+       #'identity
+       (cl-loop for i from 0
+                for patt in (cl-remove-if #'string-empty-p patts)
+                collect (unless (string-empty-p patt)
+                          (concat (when (= i 0) (regexp-quote basedir))
+                                  "\\("
+                                  patt
+                                  "\\|"
+                                  (helm-pinyin--mapconcat-pattern patt)
+                                  "\\)")))
+       " "))))
 
 (defun helm-find-files@pinyin (orig-fn arg)
   (let ((helm-mm-default-match-functions
