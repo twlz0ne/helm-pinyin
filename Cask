@@ -6,4 +6,5 @@
 (depends-on "pinyinlib")
 
 (development
- (depends-on "ert-runner"))
+ (depends-on "ert-runner")
+ (depends-on "ecukes"))
