@@ -32,6 +32,12 @@ jobs:
             allow_failures: true
 
     steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+        architecture: x64
+
     - name: Set up Emacs
       uses: purcell/setup-emacs@master
       with:
