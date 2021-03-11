@@ -40,6 +40,7 @@
 
 ;;; Code:
 
+(require 'subr-x)
 (require 'cl-lib)
 (require 'helm)
 (require 'pinyinlib)
@@ -188,7 +189,7 @@ Replaced with:
                           for dup = (gethash c hash)
                           for disp = (helm-candidate-get-display c)
                           while (< count limit)
-                          for target = (if (helm-attr 'match-on-real source)
+                          for target = (if (helm-get-attr 'match-on-real source)
                                            (or (cdr-safe c)
                                                (get-text-property 0 'helm-realvalue disp))
                                          disp)
