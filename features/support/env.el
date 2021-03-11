@@ -1,19 +1,19 @@
 (require 'f)
 
-(defvar emacs-helm-pinyin-support-path
+(defvar helm-pinyin-support-path
   (f-dirname load-file-name))
 
-(defvar emacs-helm-pinyin-features-path
-  (f-parent emacs-helm-pinyin-support-path))
+(defvar helm-pinyin-features-path
+  (f-parent helm-pinyin-support-path))
 
-(defvar emacs-helm-pinyin-root-path
-  (f-parent emacs-helm-pinyin-features-path))
+(defvar helm-pinyin-root-path
+  (f-parent helm-pinyin-features-path))
 
-(add-to-list 'load-path emacs-helm-pinyin-root-path)
+(add-to-list 'load-path helm-pinyin-root-path)
 
 ;; Ensure that we don't load old byte-compiled versions
 (let ((load-prefer-newer t))
-  (require 'emacs-helm-pinyin)
+  (require 'helm-pinyin)
   (require 'espuds)
   (require 'ert))
 
