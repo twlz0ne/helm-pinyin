@@ -56,4 +56,3 @@ jobs:
         cask install
         cask build
         cask exec ert-runner --reporter ert+duration
-        cask exec ecukes --win
