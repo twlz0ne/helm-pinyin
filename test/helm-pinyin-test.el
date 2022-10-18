@@ -37,27 +37,27 @@
                           "/path/to/")))
 
   (should
-   (string= "/path/to/[^f]*f[^o]*o[^o]*o"
+   (string= "/path/to/[^f]*?f[^o]*?o[^o]*?o"
             (--call-orign 'helm-ff--transform-pattern-for-completion
                           "/path/to/foo")))
 
   (should
-   (string= "/path/to/foo bar"
+   (string= "/path/to/ foo bar"
             (--call-orign 'helm-ff--transform-pattern-for-completion
                           "/path/to/foo bar")))
 
   (should
-   (string= "/path/to/ bar"
+   (string= "/path/to/  bar"
             (--call-orign 'helm-ff--transform-pattern-for-completion
                           "/path/to/ bar")))
 
   (should
-   (string= "[^f]*f[^o]*o[^o]*o"
+   (string= "[^f]*?f[^o]*?o[^o]*?o"
             (--call-orign 'helm-ff--transform-pattern-for-completion
                           "foo")))
 
   (should
-   (string= "foo bar"
+   (string= " foo bar"
             (--call-orign 'helm-ff--transform-pattern-for-completion
                           "foo bar"))))
 
@@ -67,36 +67,29 @@
             (helm-ff--transform-pattern-for-completion "/path/to/")))
 
   (should
-   (string-prefix-p "/path/to/\\([^f]*f[^o]*o[^o]*o\\|[^f发法罚乏伐阀砝筏垡珐反饭"
-                    (helm-ff--transform-pattern-for-completion "/path/to/foo")))
+   (equal "/path/to/[^f发]*[f发][^o哦]*[o哦][^o哦]*[o哦]"
+          (helm-pinyin--shorten-pinyin-regexp
+           (helm-ff--transform-pattern-for-completion "/path/to/foo"))))
 
   (should
-   (string-prefix-p "/path/to/\\(foo\\|[^f发法罚乏伐阀砝筏垡珐反饭犯翻范凡烦返番"
-                    (helm-ff--transform-pattern-for-completion "/path/to/ foo")))
-
-  (let* ((s "/path/to/foo bar")
-         (patts (split-string (helm-ff--transform-pattern-for-completion s) " ")))
-    (should
-     (string-prefix-p "/path/to/\\(foo\\|[^f发法罚乏伐阀砝筏垡珐反饭犯翻范凡烦返"
-                      (nth 0 patts)))
-
-    (should
-     (string-prefix-p "\\(bar\\|[^b把八吧巴爸罢拔叭芭霸靶扒疤跋坝笆耙粑灞茇菝魃岜"
-                      (nth 1 patts))))
+   (equal "/path/to/ [f发][o哦][o哦] [b把][a阿][r然]"
+          (helm-pinyin--shorten-pinyin-regexp
+           (helm-ff--transform-pattern-for-completion "/path/to/foo bar"))))
 
   (should
-   (string-prefix-p "\\([^f]*f[^o]*o[^o]*o\\|[^f发法罚乏伐阀砝筏垡珐反饭犯翻范凡"
-                    (helm-ff--transform-pattern-for-completion "foo")))
+   (equal "/path/to/ [b把][a阿][r然]"
+          (helm-pinyin--shorten-pinyin-regexp
+           (helm-ff--transform-pattern-for-completion "/path/to/ bar"))))
 
-  (let* ((s "foo bar")
-         (patts (split-string (helm-ff--transform-pattern-for-completion s) " ")))
-    (should
-     (string-prefix-p "\\(foo\\|[^f发法罚乏伐阀砝筏垡珐反饭犯翻范凡烦返番贩繁泛帆"
-                      (nth 0 patts)))
+  (should
+   (equal "[^f发]*[f发][^o哦]*[o哦][^o哦]*[o哦]"
+          (helm-pinyin--shorten-pinyin-regexp
+           (helm-ff--transform-pattern-for-completion "foo"))))
 
-    (should
-     (string-prefix-p "\\(bar\\|[^b把八吧巴爸罢拔叭芭霸靶扒疤跋坝笆耙粑灞茇菝魃岜"
-                      (nth 1 patts)))))
+  (should
+   (equal " [f发][o哦][o哦] [b把][a阿][r然]"
+          (helm-pinyin--shorten-pinyin-regexp
+           (helm-ff--transform-pattern-for-completion "foo bar")))))
 
 (ert-deftest helm-pinyin-test-mm-3-match ()
   (let ((s "/path/+to/file"))

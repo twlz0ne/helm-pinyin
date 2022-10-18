@@ -68,7 +68,7 @@
 
 (defun helm-pinyin--shorten-pinyin-regexp (pinyin-pattern &optional len)
   "Return shortened pinyin regexp, e.g.: “[^a阿]*[a阿]”."
-  (if (and pinyin-pattern (stringp pinyin-pattern))
+  (if (stringp pinyin-pattern)
       (with-temp-buffer
         (insert pinyin-pattern)
         (goto-char (point-min))
@@ -79,7 +79,11 @@
             (setq match2 (match-string 2))
             (delete-region (match-beginning 0) (match-end 0))
             (insert match1 (substring match2 0 (min (or len 2) (length match2))) "]"))
-          (buffer-string)))))
+          (buffer-string)))
+    (if (and (consp pinyin-pattern) (stringp (cdar pinyin-pattern)))
+        (cl-loop for (predicate . regexp) in pinyin-pattern
+                 collect (cons predicate
+                               (helm-pinyin--shorten-pinyin-regexp regexp len))))))
 
 (defsubst helm-pinyin--rebuild-chars-order (dchars rchars)
   "Rebuild the order of DCHARS base on RCHARS.
@@ -96,8 +100,9 @@ E.g.: (fn \\='(\"c\" \"a\") \\='(\"a\" \"b\" \"c\"))
                      dchars)
              #'< :key #'cdr)))
 
-(defsubst helm-pinyin--choose-pinyin-acronyms (chars max-len)
-  "Select as many chars as possible from CHARS to keep the re length < MAX-LEN."
+(defsubst helm-pinyin--choose-pinyin-acronyms (chars max-len &optional mm-match-p)
+  "Select as many chars as possible from CHARS to keep the re length < MAX-LEN.
+\nIf mm-match-p not nil, means not a fuzzy match."
   (cl-loop with rem-len = max-len
            with acc-len = 0
            for char in chars
@@ -108,14 +113,26 @@ E.g.: (fn \\='(\"c\" \"a\") \\='(\"a\" \"b\" \"c\"))
            (cl-loop with sorted-pairs = (cl-sort pairs #'< :key #'cdr)
                     with chosens = nil
                     for (char . num) in sorted-pairs
-                    ;; the first chinese character consumes a buffer size of 18 
-                    ;; and each of rest consumes 10, E.g.:
+                    ;; For mm match, the first chinese character consumes a
+                    ;; buffer size of 9 and each of rest consumes 5, E.g.:
                     ;;
-                    ;;         [^a]*[a]
-                    ;;         [^a啊]*[a啊]        +18
-                    ;;         [^a啊阿]*[a啊阿]    +10
+                    ;;         [a]                   12
+                    ;;         [a啊]                 21(+9)
+                    ;;         [a啊阿]               26(+5)
+                    ;;         [a啊阿嗷]             31(+5)
+                    ;; 
+                    ;; For fuzzy match, the first chinese character consumes a
+                    ;; buffer size of 18 and each of rest consumes 10, E.g.:
                     ;;
-                    do (setq rem-len (- rem-len (* num 10) 8))
+                    ;;         [^a]*[a]              28
+                    ;;         [^a啊]*[a啊]          46(+18)
+                    ;;         [^a啊阿]*[a啊阿]      56(+10)
+                    ;;         [^a啊阿嗷]*[a啊阿嗷]  66(+10)
+                    ;;
+                    do (setq rem-len
+                             (if mm-match-p
+                                 (- rem-len (* num 5) 4)
+                               (- rem-len (* num 10) 8)))
                     while (< 0 rem-len)
                     collect char into chosens
                     do (setq acc-len (- max-len rem-len))
@@ -140,7 +157,7 @@ E.g.: (fn \\='(\"c\" \"a\") \\='(\"a\" \"b\" \"c\"))
   "Check if current source is find files."
   (string= "Find Files" (assoc-default 'name (helm-get-current-source))))
 
-(defsubst helm-pinyin--mapconcat-pattern (pattern &optional max-len)
+(defsubst helm-pinyin--mapconcat-pattern (pattern &optional max-len mm-match-p)
   "Transform pinyin string PATTERN in regexp for further fuzzy matching.
 
 Like ‘helm--mapconcat-pattern’ but generate pinyin regexp for fuzzy matching.
@@ -159,19 +176,29 @@ E.g: a.b$
                    (cdr ls) "")
       ;; Fuzzy match.
       (cl-loop with rem-len = (- (or max-len helm-pinyin--reg-max)
-                                 ;; each [^x]*[x] consumes a buffer size of 28
-                                 (* 28 (length ls)))
-               with pinyins = (helm-pinyin--choose-pinyin-acronyms ls rem-len)
+                                 ;; Each [x] consumes a buffer size of 12
+                                 ;; Each [^x]*[x] consumes a buffer size of 28
+                                 (if mm-match-p
+                                     (* 12 (length ls))
+                                   (* 28 (length ls))))
+               with pinyins =
+                 (helm-pinyin--choose-pinyin-acronyms ls rem-len mm-match-p)
                for char in ls
                for index from 0
                for reg = 
                (if (and (string= char "$") (string-match "$\\'" pattern))
                    char
                  (if (rassoc index (cdr pinyins))
-                     (let ((reg-pinyin (pinyinlib-build-regexp-string char)))
-                       (format "[^%s]*%s" (substring reg-pinyin 1 -1) reg-pinyin))
+                       (let ((reg-pinyin (pinyinlib-build-regexp-string char)))
+                         (if mm-match-p
+                             reg-pinyin
+                           (format "[^%s]*%s"
+                                   (substring reg-pinyin 1 -1)
+                                   reg-pinyin)))
                    (let ((reg-eng (regexp-quote char)))
-                     (format "[^%s]*[%s]" reg-eng reg-eng))))
+                     (if mm-match-p
+                         reg-eng
+                       (format "[^%s]*[%s]" reg-eng reg-eng)))))
                collect reg into regs
                finally return
                (let ((ret (string-join regs "")))
@@ -346,20 +373,20 @@ Replaced with:
                   (if (string-empty-p patt1)
                       ""
                     (helm-pinyin--mapconcat-pattern patt1 rem-len1))))
-      (mapconcat
-       #'identity
-       (cl-loop for i from 0
-                for patt in (cl-remove-if #'string-empty-p patts)
-                for rem-len2 = (- rem-len (length patt))
-                collect (unless (string-empty-p patt)
-                          (when helm-pinyin-debug-p
-                            (let ((inhibit-message t))
-                              (message "==> patt: %s" patt)
-                              (message "==> rem-len2: %s" rem-len2)))
-                          (concat (when (= i 0) (regexp-quote basedir))
-                                  (helm-pinyin--mapconcat-pattern
-                                   patt rem-len2))))
-       " "))))
+      (concat (regexp-quote basedir)
+              " "
+              (cl-loop for i from 0
+                       for patt in (cl-remove-if #'string-empty-p patts)
+                       for rem-len2 = (- rem-len (length patt))
+                       collect (unless (string-empty-p patt)
+                                 (when helm-pinyin-debug-p
+                                   (let ((inhibit-message t))
+                                     (message "==> patt: %s" patt)
+                                     (message "==> rem-len2: %s" rem-len2)))
+                                 (helm-pinyin--mapconcat-pattern
+                                  patt rem-len2 'mm-match))
+                         into regexps
+                       finally return (string-join (remove nil regexps) " "))))))
 
 (defun helm-find-files@pinyin (orig-fn arg)
   (let ((helm-mm-default-match-functions
