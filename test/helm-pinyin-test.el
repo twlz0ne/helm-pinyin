@@ -28,85 +28,20 @@
 (defun --call-orign (adviced-fn &rest args)
   (apply (advice--cdr (symbol-function adviced-fn)) args))
 
-(ert-deftest helm-pinyin-test-transform-pattern-for-completion-original ()
-  "Tests to monitor changes in `helm'."
+(ert-deftest test-helm-pinyin-convert-to-pinyin ()
+  (should (equal "csabc" (helm-pinyin-convert-to-pinyin "测试abc")))
+  (should (equal "/path/to/csabc" (helm-pinyin-convert-to-pinyin "/path/to/测试abc")))
+  (should (equal "/路径/csabc" (helm-pinyin-convert-to-pinyin "/路径/测试abc"))))
 
-  (should
-   (string= "/path/to/to" ;; Maybe there is a bug in `helm-basename'
-            (--call-orign 'helm-ff--transform-pattern-for-completion
-                          "/path/to/")))
-
-  (should
-   (string= "/path/to/[^f]*?f[^o]*?o[^o]*?o"
-            (--call-orign 'helm-ff--transform-pattern-for-completion
-                          "/path/to/foo")))
-
-  (should
-   (string= "/path/to/ foo bar"
-            (--call-orign 'helm-ff--transform-pattern-for-completion
-                          "/path/to/foo bar")))
-
-  (should
-   (string= "/path/to/  bar"
-            (--call-orign 'helm-ff--transform-pattern-for-completion
-                          "/path/to/ bar")))
-
-  (should
-   (string= "[^f]*?f[^o]*?o[^o]*?o"
-            (--call-orign 'helm-ff--transform-pattern-for-completion
-                          "foo")))
-
-  (should
-   (string= " foo bar"
-            (--call-orign 'helm-ff--transform-pattern-for-completion
-                          "foo bar"))))
-
-(ert-deftest helm-pinyin-test-transform-pattern-for-completion ()
-  (should
-   (string= "/path/to/"
-            (helm-ff--transform-pattern-for-completion "/path/to/")))
-
-  (should
-   (equal "/path/to/[^f发]*[f发][^o哦]*[o哦][^o哦]*[o哦]"
-          (helm-pinyin--shorten-pinyin-regexp
-           (helm-ff--transform-pattern-for-completion "/path/to/foo"))))
-
-  (should
-   (equal "/path/to/ [f发][o哦][o哦] [b把][a阿][r然]"
-          (helm-pinyin--shorten-pinyin-regexp
-           (helm-ff--transform-pattern-for-completion "/path/to/foo bar"))))
-
-  (should
-   (equal "/path/to/ [b把][a阿][r然]"
-          (helm-pinyin--shorten-pinyin-regexp
-           (helm-ff--transform-pattern-for-completion "/path/to/ bar"))))
-
-  (should
-   (equal "[^f发]*[f发][^o哦]*[o哦][^o哦]*[o哦]"
-          (helm-pinyin--shorten-pinyin-regexp
-           (helm-ff--transform-pattern-for-completion "foo"))))
-
-  (should
-   (equal " [f发][o哦][o哦] [b把][a阿][r然]"
-          (helm-pinyin--shorten-pinyin-regexp
-           (helm-ff--transform-pattern-for-completion "foo bar")))))
-
-(ert-deftest helm-pinyin-test-mm-3-match ()
-  (let ((s "/path/+to/file"))
-    (should
-     (funcall #'helm-pinyin-mm-3-match
-              s
-              (list
-               (cons 'identity
-                     (helm-ff--transform-pattern-for-completion s))))))
-
-  (let ((s "/path/t o/file"))
-    (should
-     (funcall #'helm-pinyin-mm-3-match
-              s
-              (list
-               (cons 'identity
-                     (helm-ff--transform-pattern-for-completion s)))))))
+(ert-deftest test-helm-pinyin-text-properties ()
+  (should (equal
+           (if (<= emacs-major-version 27)
+               '((2 3 (face nil)) (1 2 (face nil display "0")) (0 1 (face helm-match)))
+               '((0 1 (face helm-match)) (1 2 (display "0" face nil)) (2 3 (face nil))))
+           (let ((text (propertize "foo" 'face nil)))
+             (put-text-property 0 1 'face 'helm-match text)
+             (put-text-property 1 2 'display "0" text)
+             (helm-pinyin-text-properties text)))))
 
 (provide 'helm-pinyin-test)
 
