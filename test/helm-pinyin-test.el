@@ -29,9 +29,10 @@
   (apply (advice--cdr (symbol-function adviced-fn)) args))
 
 (ert-deftest test-helm-pinyin-convert-to-pinyin ()
-  (should (equal "csabc" (helm-pinyin-convert-to-pinyin "测试abc")))
-  (should (equal "/path/to/csabc" (helm-pinyin-convert-to-pinyin "/path/to/测试abc")))
-  (should (equal "/路径/csabc" (helm-pinyin-convert-to-pinyin "/路径/测试abc"))))
+  (should (equal '("csabc" . 2) (helm-pinyin-convert-to-pinyin "测试abc")))
+  (should (equal '("/path/to/csabc" . 2) (helm-pinyin-convert-to-pinyin "/path/to/测试abc")))
+  (should (equal '("/路径/csabc" . 2) (helm-pinyin-convert-to-pinyin "/路径/测试abc")))
+  (should (equal '("/路径/testabc" . 0) (helm-pinyin-convert-to-pinyin "/路径/testabc"))))
 
 (ert-deftest test-helm-pinyin-text-properties ()
   (should (equal

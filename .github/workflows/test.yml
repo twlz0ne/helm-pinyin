@@ -31,9 +31,9 @@ jobs:
 
     steps:
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.6
+        python-version: '3.10'
         architecture: x64
 
     - name: Set up Emacs
@@ -44,7 +44,7 @@ jobs:
     - name: Set up Cask
       uses: conao3/setup-cask@master
       with:
-        version: 0.8.6
+        version: 'snapshot'
 
     - name: Check out the source code
       uses: actions/checkout@v2
