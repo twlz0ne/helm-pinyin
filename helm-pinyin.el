@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-25 11:11:17 +0800
+;; Last-Updated: 2023-05-25 22:36:25 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -49,8 +49,6 @@
 (require 'helm)
 (require 'pinyinlib)
 
-(defvar helm-pinyin-1arg-match-functions '(helm-buffers-match-function identity)
-  "A list of match functions that have 1 argument.")
 
 (defvar helm-pinyin-matched-candidate-alist nil
   "A list of ((candidate1 . pinyin1) (candidate2 . pinyin2) ...).")
@@ -116,10 +114,7 @@
          matched)
     (catch 'break
       (dolist (matchfn (if (consp matchfns) matchfns (list matchfns)))
-        (when (setq matched
-                    (if (memq matchfn helm-pinyin-1arg-match-functions)
-                        (funcall matchfn (car pycand))
-                      (funcall matchfn (car pycand) pattern)))
+        (when (setq matched (funcall matchfn (car pycand)))
           (unless (zerop (cdr pycand))
             (push (cons candidate (car pycand)) helm-pinyin-matched-candidate-alist))
           (throw 'break nil))))
