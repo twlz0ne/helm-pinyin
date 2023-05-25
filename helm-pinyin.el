@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-24 09:04:23 +0800
+;; Last-Updated: 2023-05-25 11:11:17 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -55,6 +55,9 @@
 (defvar helm-pinyin-matched-candidate-alist nil
   "A list of ((candidate1 . pinyin1) (candidate2 . pinyin2) ...).")
 
+(defvar helm-pinyin-buffers-source-p nil
+  "Non-nil means current is the source \"Buffers\".")
+
 (defalias 'helm-pinyin-text-properties
   (if (fboundp 'object-intervals)
       'object-intervals
@@ -87,7 +90,10 @@
 (defun helm-pinyin--advice-fuzzy-default-highlight-match (orig-fn candidate &rest rest)
   "Advice to highlight chinese characters matched by pinyin."
   (if-let ((candtmp (if (consp candidate) (car candidate) candidate))
-           (candpy (assoc-default candtmp helm-pinyin-matched-candidate-alist)))
+           (candpy (assoc-default (if helm-pinyin-buffers-source-p
+                                      (string-trim-right candtmp)
+                                    candtmp)
+                                  helm-pinyin-matched-candidate-alist)))
       (progn
         (dolist (intvl (helm-pinyin-text-properties (apply orig-fn candpy rest)))
           (pcase intvl
@@ -125,9 +131,14 @@
 
 (defvar helm-pinyin-enabled-sources '("Find Files" "Buffers" "Recentf"))
 
-(defun helm-pinyin--advice-collect-matches (source-list)
-  "Advice to do some reset before `helm-compute-matches'."
+(defun helm-pinyin--advice-collect-matches (_source-list)
+  "Advice to do some initialization before `helm--collect-matches'."
   (setq helm-pinyin-matched-candidate-alist nil))
+
+(defun helm-pinyin--advice-compute-matches (source)
+  "Advice to do some initialization before `helm-compute-matches'."
+  (setq helm-pinyin-buffers-source-p
+        (string= "Buffers" (assoc-default 'name source))))
 
 (defun turn-on-helm-pinyin ()
   (interactive)
@@ -136,7 +147,9 @@
   (advice-add 'helm-fuzzy-default-highlight-match
               :around #'helm-pinyin--advice-fuzzy-default-highlight-match)
   (advice-add 'helm--collect-matches
-              :before #'helm-pinyin--advice-collect-matches))
+              :before #'helm-pinyin--advice-collect-matches)
+  (advice-add 'helm-compute-matches
+              :before #'helm-pinyin--advice-compute-matches))
 
 (defun turn-off-helm-pinyin ()
   (interactive)
@@ -145,7 +158,9 @@
   (advice-remove 'helm-fuzzy-default-highlight-match
                  #'helm-pinyin--advice-fuzzy-default-highlight-match)
   (advice-remove 'helm--collect-matches
-                 #'helm-pinyin--advice-collect-matches))
+                 #'helm-pinyin--advice-collect-matches)
+  (advice-remove 'helm-compute-matches
+                 #'helm-pinyin--advice-compute-matches))
 
 
 
