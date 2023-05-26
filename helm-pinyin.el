@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-26 12:45:20 +0800
+;; Last-Updated: 2023-05-26 13:05:51 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -140,29 +140,33 @@
   (setq helm-pinyin-original-match-functions
         (helm-pinyin-call-original 'helm-match-functions source)))
 
-(defun turn-on-helm-pinyin ()
-  (interactive)
-  (advice-add 'helm-match-functions
-              :filter-return #'helm-pinyin--advice-match-functions)
-  (advice-add 'helm-fuzzy-default-highlight-match
-              :around #'helm-pinyin--advice-fuzzy-default-highlight-match)
-  (advice-add 'helm--collect-matches
-              :before #'helm-pinyin--advice-collect-matches)
-  (advice-add 'helm-compute-matches
-              :before #'helm-pinyin--advice-compute-matches))
+(defvar helm-pinyin-modeline-indicator " HelmPY"
+  "String to display in modeline when `helm-pinyin-mode' is activated.")
 
-(defun turn-off-helm-pinyin ()
-  (interactive)
-  (advice-remove 'helm-match-functions
-                 #'helm-pinyin--advice-match-functions)
-  (advice-remove 'helm-fuzzy-default-highlight-match
-                 #'helm-pinyin--advice-fuzzy-default-highlight-match)
-  (advice-remove 'helm--collect-matches
-                 #'helm-pinyin--advice-collect-matches)
-  (advice-remove 'helm-compute-matches
-                 #'helm-pinyin--advice-compute-matches))
-
-
+(define-minor-mode helm-pinyin-mode
+  "Toggle helm pinyin mode."
+  :global t
+  :group 'helm-pinyin
+  :lighter helm-pinyin-modeline-indicator
+  :require 'helm-pinyin
+  (if helm-pinyin-mode
+      (progn
+        (advice-add 'helm-match-functions
+                    :filter-return #'helm-pinyin--advice-match-functions)
+        (advice-add 'helm-fuzzy-default-highlight-match
+                    :around #'helm-pinyin--advice-fuzzy-default-highlight-match)
+        (advice-add 'helm--collect-matches
+                    :before #'helm-pinyin--advice-collect-matches)
+        (advice-add 'helm-compute-matches
+                    :before #'helm-pinyin--advice-compute-matches))
+    (advice-remove 'helm-match-functions
+                   #'helm-pinyin--advice-match-functions)
+    (advice-remove 'helm-fuzzy-default-highlight-match
+                   #'helm-pinyin--advice-fuzzy-default-highlight-match)
+    (advice-remove 'helm--collect-matches
+                   #'helm-pinyin--advice-collect-matches)
+    (advice-remove 'helm-compute-matches
+                   #'helm-pinyin--advice-compute-matches)))
 
 (provide 'helm-pinyin)
 
