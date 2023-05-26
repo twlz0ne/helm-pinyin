@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-25 22:36:25 +0800
+;; Last-Updated: 2023-05-26 12:45:20 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -49,6 +49,8 @@
 (require 'helm)
 (require 'pinyinlib)
 
+(defvar helm-pinyin-original-match-functions nil
+  "A list of original match function of current source.")
 
 (defvar helm-pinyin-matched-candidate-alist nil
   "A list of ((candidate1 . pinyin1) (candidate2 . pinyin2) ...).")
@@ -85,6 +87,10 @@
                              chr)))))
      pynum)))
 
+(defun helm-pinyin-call-original (adviced-fn &rest args)
+  "Call the original function of ADVICED-FN with ARGS."
+  (apply (advice--cdr (symbol-function adviced-fn)) args))
+
 (defun helm-pinyin--advice-fuzzy-default-highlight-match (orig-fn candidate &rest rest)
   "Advice to highlight chinese characters matched by pinyin."
   (if-let ((candtmp (if (consp candidate) (car candidate) candidate))
@@ -107,13 +113,10 @@
 
 (cl-defun helm-pinyin-mm-match (candidate &optional (pattern helm-pattern))
   "Call all match functions with pinyin of CANDIDATE."
-  (let* ((matchfns
-          ;; Don't use the `helm-match-functions' here.
-          (assoc-default 'match (helm-get-current-source)))
-         (pycand (helm-pinyin-convert-to-pinyin candidate))
+  (let* ((pycand (helm-pinyin-convert-to-pinyin candidate))
          matched)
     (catch 'break
-      (dolist (matchfn (if (consp matchfns) matchfns (list matchfns)))
+      (dolist (matchfn helm-pinyin-original-match-functions)
         (when (setq matched (funcall matchfn (car pycand)))
           (unless (zerop (cdr pycand))
             (push (cons candidate (car pycand)) helm-pinyin-matched-candidate-alist))
@@ -133,7 +136,9 @@
 (defun helm-pinyin--advice-compute-matches (source)
   "Advice to do some initialization before `helm-compute-matches'."
   (setq helm-pinyin-buffers-source-p
-        (string= "Buffers" (assoc-default 'name source))))
+        (string= "Buffers" (assoc-default 'name source)))
+  (setq helm-pinyin-original-match-functions
+        (helm-pinyin-call-original 'helm-match-functions source)))
 
 (defun turn-on-helm-pinyin ()
   (interactive)
