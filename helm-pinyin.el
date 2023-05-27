@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-26 13:05:51 +0800
+;; Last-Updated: 2023-05-27 12:27:06 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -87,9 +87,32 @@
                              chr)))))
      pynum)))
 
+;; Borrowed from `undo-fu'.
+(defmacro helm-pinyin--with-advice (fn-orig where fn-advice &rest body)
+  "Execute BODY with advice added.
+
+WHERE using FN-ADVICE temporarily added to FN-ORIG."
+  (declare (indent 1))
+  `(let ((fn-advice-var ,fn-advice))
+     (unwind-protect
+         (progn
+           (advice-add ,fn-orig ,where fn-advice-var)
+           ,@body)
+       (advice-remove ,fn-orig fn-advice-var))))
+
 (defun helm-pinyin-call-original (adviced-fn &rest args)
   "Call the original function of ADVICED-FN with ARGS."
   (apply (advice--cdr (symbol-function adviced-fn)) args))
+
+(defun helm-pinyin--advice-set-default-prompt-display (fn source &optional _)
+  "Advice to prepend pinyin indicator to header line of helm window."
+   (helm-pinyin--with-advice 'force-mode-line-update
+     :around (lambda (&rest args)
+               (setq header-line-format
+                     (concat helm-pinyin-header-line-indicator
+                             header-line-format))
+               (apply args))
+     (funcall fn source 'force)))
 
 (defun helm-pinyin--advice-fuzzy-default-highlight-match (orig-fn candidate &rest rest)
   "Advice to highlight chinese characters matched by pinyin."
@@ -140,14 +163,17 @@
   (setq helm-pinyin-original-match-functions
         (helm-pinyin-call-original 'helm-match-functions source)))
 
-(defvar helm-pinyin-modeline-indicator " HelmPY"
-  "String to display in modeline when `helm-pinyin-mode' is activated.")
+(defvar helm-pinyin-mode-line-indicator " HelmPy"
+  "String to display in mode line when `helm-pinyin-mode' is activated.")
+
+(defvar helm-pinyin-header-line-indicator "[Pinyin]"
+  "String prepend to header line of helm window when `helm-pinyin-mode' is activated.")
 
 (define-minor-mode helm-pinyin-mode
   "Toggle helm pinyin mode."
   :global t
   :group 'helm-pinyin
-  :lighter helm-pinyin-modeline-indicator
+  :lighter helm-pinyin-mode-line-indicator
   :require 'helm-pinyin
   (if helm-pinyin-mode
       (progn
@@ -158,7 +184,9 @@
         (advice-add 'helm--collect-matches
                     :before #'helm-pinyin--advice-collect-matches)
         (advice-add 'helm-compute-matches
-                    :before #'helm-pinyin--advice-compute-matches))
+                    :before #'helm-pinyin--advice-compute-matches)
+        (advice-add 'helm-display-mode-line
+                    :around #'helm-pinyin--advice-set-default-prompt-display))
     (advice-remove 'helm-match-functions
                    #'helm-pinyin--advice-match-functions)
     (advice-remove 'helm-fuzzy-default-highlight-match
@@ -166,7 +194,9 @@
     (advice-remove 'helm--collect-matches
                    #'helm-pinyin--advice-collect-matches)
     (advice-remove 'helm-compute-matches
-                   #'helm-pinyin--advice-compute-matches)))
+                   #'helm-pinyin--advice-compute-matches)
+    (advice-remove 'helm-display-mode-line
+                   #'helm-pinyin--advice-set-default-prompt-display)))
 
 (provide 'helm-pinyin)
 
