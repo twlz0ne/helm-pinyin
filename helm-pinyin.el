@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-27 12:27:06 +0800
+;; Last-Updated: 2023-05-27 13:27:51 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -122,6 +122,7 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
                                     candtmp)
                                   helm-pinyin-matched-candidate-alist)))
       (progn
+        (setq candtmp (substring candtmp)) ;; Use the copy to apply properties.
         (dolist (intvl (helm-pinyin-text-properties (apply orig-fn candpy rest)))
           (pcase intvl
             (`(,beg ,end ,props)
