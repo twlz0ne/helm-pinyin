@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-29 18:00:08 +0800
+;; Last-Updated: 2023-05-29 18:34:50 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -57,6 +57,9 @@
 
 (defvar helm-pinyin-buffers-source-p nil
   "Non-nil means current is the source \"Buffers\".")
+
+(defvar helm-pinyin-input-pinyin-p nil
+  "Non-nil means current match pattern contains Chinese character.")
 
 (defalias 'helm-pinyin-text-properties
   (if (fboundp 'object-intervals)
@@ -116,7 +119,8 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
 
 (defun helm-pinyin--advice-fuzzy-default-highlight-match (orig-fn candidate &rest rest)
   "Advice to highlight chinese characters matched by pinyin."
-  (if-let ((candtmp (if (consp candidate) (car candidate) candidate))
+  (if-let ((input-pinyin-p helm-pinyin-input-pinyin-p)
+           (candtmp (if (consp candidate) (car candidate) candidate))
            (candpy (assoc-default (if helm-pinyin-buffers-source-p
                                       (string-trim-right candtmp)
                                     candtmp)
@@ -135,6 +139,11 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
           candtmp))
     (apply orig-fn candidate rest)))
 
+(defun helm-pinyin--initials-before-collecting (&rest _)
+  "Initials before collecting."
+  (setq helm-pinyin-matched-candidate-alist nil)
+  (setq helm-pinyin-input-pinyin-p (not (string-match "\\cc" helm-pattern))))
+
 (cl-defun helm-pinyin-mm-match (candidate &optional (pattern helm-pattern))
   "Call all match functions with pinyin of CANDIDATE."
   (let* ((pycand (helm-pinyin-convert-to-pinyin candidate))
@@ -152,10 +161,6 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
   (append '(helm-pinyin-mm-match) return))
 
 (defvar helm-pinyin-enabled-sources '("Find Files" "Buffers" "Recentf"))
-
-(defun helm-pinyin--advice-collect-matches (_source-list)
-  "Advice to do some initialization before `helm--collect-matches'."
-  (setq helm-pinyin-matched-candidate-alist nil))
 
 (defun helm-pinyin--advice-compute-matches (source)
   "Advice to do some initialization before `helm-compute-matches'."
@@ -177,10 +182,6 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
            (push (cons candidate (car pycand))
                  helm-pinyin-matched-candidate-alist))
        (funcall orig-fn candidate pattern))))
-
-(defun helm-pinyin--adcice-completion-multi-all-completions-1 (&rest _)
-  "Advice before `helm-completion--multi-all-completions-1'."
-  (setq helm-pinyin-matched-candidate-alist nil))
 
 
 ;; helm-pinyin-mode
@@ -204,13 +205,13 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
         (advice-add 'helm-fuzzy-default-highlight-match
                     :around #'helm-pinyin--advice-fuzzy-default-highlight-match)
         (advice-add 'helm--collect-matches
-                    :before #'helm-pinyin--advice-collect-matches)
+                    :before #'helm-pinyin--initials-before-collecting)
         (advice-add 'helm-compute-matches
                     :before #'helm-pinyin--advice-compute-matches)
         (advice-add 'helm-mm-match
                     :around #'helm-pinyin--advice-mm-match)
         (advice-add 'helm-completion--multi-all-completions-1
-                    :before #'helm-pinyin--adcice-completion-multi-all-completions-1)
+                    :before #'helm-pinyin--initials-before-collecting)
         (advice-add 'helm-display-mode-line
                     :around #'helm-pinyin--advice-set-default-prompt-display))
     (advice-remove 'helm-match-functions
@@ -218,13 +219,13 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
     (advice-remove 'helm-fuzzy-default-highlight-match
                    #'helm-pinyin--advice-fuzzy-default-highlight-match)
     (advice-remove 'helm--collect-matches
-                   #'helm-pinyin--advice-collect-matches)
+                   #'helm-pinyin--initials-before-collecting)
     (advice-remove 'helm-compute-matches
                    #'helm-pinyin--advice-compute-matches)
     (advice-remove 'helm-mm-match
                    #'helm-pinyin--advice-mm-match)
     (advice-remove 'helm-completion--multi-all-completions-1
-                   #'helm-pinyin--adcice-completion-multi-all-completions-1)
+                   #'helm-pinyin--initials-before-collecting)
     (advice-remove 'helm-display-mode-line
                    #'helm-pinyin--advice-set-default-prompt-display)))
 
