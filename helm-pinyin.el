@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-27 13:27:51 +0800
+;; Last-Updated: 2023-05-29 18:00:08 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -164,6 +164,27 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
   (setq helm-pinyin-original-match-functions
         (helm-pinyin-call-original 'helm-match-functions source)))
 
+;;; Advices for `helm-dynamic-completion'
+
+(cl-defun helm-pinyin--advice-mm-match (orig-fn candidate
+                                                &optional (pattern helm-pattern))
+    "Advice around `helm-mm-match' (ORIG-FN) to filter CANDIDATE by pinyin."
+   (let* ((pycand (helm-pinyin-convert-to-pinyin candidate))
+          (matched (unless (zerop (cdr pycand))
+                     (funcall orig-fn (car pycand) pattern))))
+     (if matched
+         (prog1 matched
+           (push (cons candidate (car pycand))
+                 helm-pinyin-matched-candidate-alist))
+       (funcall orig-fn candidate pattern))))
+
+(defun helm-pinyin--adcice-completion-multi-all-completions-1 (&rest _)
+  "Advice before `helm-completion--multi-all-completions-1'."
+  (setq helm-pinyin-matched-candidate-alist nil))
+
+
+;; helm-pinyin-mode
+
 (defvar helm-pinyin-mode-line-indicator " HelmPy"
   "String to display in mode line when `helm-pinyin-mode' is activated.")
 
@@ -186,6 +207,10 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
                     :before #'helm-pinyin--advice-collect-matches)
         (advice-add 'helm-compute-matches
                     :before #'helm-pinyin--advice-compute-matches)
+        (advice-add 'helm-mm-match
+                    :around #'helm-pinyin--advice-mm-match)
+        (advice-add 'helm-completion--multi-all-completions-1
+                    :before #'helm-pinyin--adcice-completion-multi-all-completions-1)
         (advice-add 'helm-display-mode-line
                     :around #'helm-pinyin--advice-set-default-prompt-display))
     (advice-remove 'helm-match-functions
@@ -196,6 +221,10 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
                    #'helm-pinyin--advice-collect-matches)
     (advice-remove 'helm-compute-matches
                    #'helm-pinyin--advice-compute-matches)
+    (advice-remove 'helm-mm-match
+                   #'helm-pinyin--advice-mm-match)
+    (advice-remove 'helm-completion--multi-all-completions-1
+                   #'helm-pinyin--adcice-completion-multi-all-completions-1)
     (advice-remove 'helm-display-mode-line
                    #'helm-pinyin--advice-set-default-prompt-display)))
 
