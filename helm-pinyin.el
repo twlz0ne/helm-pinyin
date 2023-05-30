@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-29 18:34:50 +0800
+;; Last-Updated: 2023-05-30 17:50:48 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -31,7 +31,22 @@
 ;; Usage:
 ;; ┌────
 ;; │ (require 'helm-pinyin)
-;; │ (turn-on-helm-pinyin)
+;; │ (helm-pinyin-mode 1)
+;; │
+;; │ ;; Apply pinyin matching on `completing-read`.
+;; │ (add-to-list 'completion-styles-alist
+;; │              (cons 'helm-pinyin (cdr (assq 'helm completion-styles-alist))))
+;; │ (setq helm-completion-style 'helm-pinyin)
+;; │
+;; │ ;; (define-key helm-map (kbd "C-c ,")
+;; │ ;;             (lambda ()
+;; │ ;;               "Toggle helm-pinyin while helm window is activated."
+;; │ ;;               (interactive)
+;; │ ;;               (if helm-pinyin-mode
+;; │ ;;                   (helm-pinyin-mode -1)
+;; │ ;;                 (helm-pinyin-mode 1))
+;; │ ;;               (helm-refresh)))
+;; │ ```
 ;; └────
 
 ;; See README.md for more information.
