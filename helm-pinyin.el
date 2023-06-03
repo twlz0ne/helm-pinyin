@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-05-30 17:50:48 +0800
+;; Last-Updated: 2023-06-03 16:06:09 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -64,6 +64,52 @@
 (require 'helm)
 (require 'pinyinlib)
 
+(defcustom helm-pinyin-source-enable-rules
+  '(((&command helm-mini helm-find-files helm-swoop) . t)
+    ((&command helm-imenu) . (&major-mode markdown-mode gfm-mode org-mode))
+    ((&frame helm--completion-in-region) . nil)
+    ((&frame helm--completing-read-default helm--generic-read-file-name) . t)
+    ((and (:name "\\`describe-\\(?:function\\|variable\\)\\(?: History\\)?\\'")
+          (:group helm))
+     . nil))
+  "A list of rules describes which source the pinyin maching apply on.
+
+Each of rule is in the form of `(MATCH-RULE . RESOLVE-RULE)'.
+
+MATCH-RULE: find the place where you should consider enabling pinyin search.
+RESOLVE-RULE: decide to enable or not.
+
+Once a rule is matched, then ignore the following.
+
+These are the currently supported rules:
+
+- (:ATTRIBUTE STRING-PATTERN)
+  Matche the value of an attribute of a source with a string-pattern.
+
+- (:ATTRIBUTE SYMBOL1 [SYMBOL2 ...])
+  Matche the value of an attribute of a source with a symbol list.
+
+- (:ATTRIBUTE (OBJECT1 [OBJECT2 ...]) [...])
+  Matche the value of an attribute of a source with a list of object list.
+
+- (&BUFFER BUFFER-NAME1 [BUFFER-NAME2 ...])
+  Matche the name of the buffer where the cursor is when helm being executed.
+
+- (&MAJOR-MODE MAJOR-MODE1 [MAJOR-MODE2 ...])
+  Matche the major mode of the buffer where the cursor is when helm being executed.
+
+- (&COMMAND COMMAND1 [COMMAND2 ...])
+  Matche the command that active helm (e.g. helm-mini, helm-M-x ...).
+
+- (&FRAME FUNCTION1 [FUNCTION2 ...])
+  Matche the frame by given function.  For example the right way to match the
+  completing read from non-helm command is use `helm--completing-read-default'
+  but not use `completing-read' directly, or you'll match all the helm commands."
+  :type 'sexp
+  :group 'helm-pinyin)
+
+;;; Internal variables
+
 (defvar helm-pinyin-original-match-functions nil
   "A list of original match function of current source.")
 
@@ -73,8 +119,20 @@
 (defvar helm-pinyin-buffers-source-p nil
   "Non-nil means current is the source \"Buffers\".")
 
+(defvar helm-pinyin-enable-on-dynamic-completion-p nil
+  "No-nil means enable pinyin match on .")
+
 (defvar helm-pinyin-input-pinyin-p nil
   "Non-nil means current match pattern contains Chinese character.")
+
+(defvar helm-pinyin-current-buffer nil
+  "The buffer where the cursor is when executing the helm command.")
+
+(defvar helm-pinyin-current-command nil
+  "The command current being executed.")
+
+
+;; Utilities
 
 (defalias 'helm-pinyin-text-properties
   (if (fboundp 'object-intervals)
@@ -122,6 +180,70 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
   "Call the original function of ADVICED-FN with ARGS."
   (apply (advice--cdr (symbol-function adviced-fn)) args))
 
+
+;; Rule functions
+
+(defun helm-pinyin--compute-attribute-rule (source attr &rest args)
+  (let ((val (assoc-default (intern-soft (substring (symbol-name attr) 1)) source)))
+    (cond
+     ((stringp (car args))
+      (catch 'match
+        (dolist (arg args)
+          (when (string-match-p arg val)
+            (throw 'match t)))))
+     ((symbolp (car args)) (memq val args))
+     ((consp (car args)) (member val args)))))
+
+(cl-defgeneric helm-pinyin--compute-specific-rule (spec &rest args)
+  (error "No implementation!"))
+
+(cl-defmethod helm-pinyin--compute-specific-rule ((_ (eql &command)) &rest commands)
+  (memq helm-pinyin-current-command commands))
+
+(cl-defmethod helm-pinyin--compute-specific-rule ((_ (eql &frame)) &rest commands)
+  (catch 'break
+    (dolist (command commands)
+      (let ((frame (backtrace-frames command)))
+        (when frame
+          (throw 'break t))))))
+
+(cl-defmethod helm-pinyin--compute-specific-rule ((_ (eql &buffer)) &rest names)
+  (and helm-pinyin-current-buffer
+       (member (buffer-name helm-pinyin-current-buffer) names)))
+
+(cl-defmethod helm-pinyin--compute-specific-rule ((_ (eql &major-mode)) &rest modes)
+  (and helm-pinyin-current-buffer
+       (let ((buffer (get-buffer helm-pinyin-current-buffer)))
+         (memq (buffer-local-value 'major-mode buffer)
+               modes))))
+
+(defun helm-pinyin--compute-rule (source rule)
+  (cond ((or (eq rule t) (eq rule nil)) rule)
+        ((eq (car rule) 'or)
+         (cl-some
+          (lambda (subrule) (helm-pinyin--compute-rule source subrule))
+          (cdr rule)))
+        ((eq (car rule) 'and)
+         (cl-every
+          (lambda (subrule) (helm-pinyin--compute-rule source subrule))
+          (cdr rule)))
+        ((eq (car rule) 'not)
+         (helm-pinyin--compute-rule source (cdr rule)))
+        ((keywordp (car rule))
+         (apply #'helm-pinyin--compute-attribute-rule source rule))
+        ((string-prefix-p "&" (symbol-name (car rule)))
+         (apply #'helm-pinyin--compute-specific-rule rule))))
+
+(defun helm-pinyin--compute-rules (source)
+  "Return non-nil meand apply pinyin match on SOURCE."
+  (cl-loop for (match . resolve) in helm-pinyin-source-enable-rules
+           for matchp = (helm-pinyin--compute-rule source match)
+           when matchp
+             return (helm-pinyin--compute-rule source resolve)))
+
+
+;; Advices
+
 (defun helm-pinyin--advice-set-default-prompt-display (fn source &optional _)
   "Advice to prepend pinyin indicator to header line of helm window."
    (helm-pinyin--with-advice 'force-mode-line-update
@@ -159,6 +281,12 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
   (setq helm-pinyin-matched-candidate-alist nil)
   (setq helm-pinyin-input-pinyin-p (not (string-match "\\cc" helm-pattern))))
 
+(defun helm-pinyin--advice-initialize (orig-fn resume input default sources)
+  "Advice around `helm-initialize'."
+  (setq helm-pinyin-current-buffer (current-buffer))
+  (setq helm-pinyin-current-command this-command)
+  (funcall orig-fn resume input default sources))
+
 (cl-defun helm-pinyin-mm-match (candidate &optional (pattern helm-pattern))
   "Call all match functions with pinyin of CANDIDATE."
   (let* ((pycand (helm-pinyin-convert-to-pinyin candidate))
@@ -171,11 +299,12 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
           (throw 'break nil))))
     matched))
 
-(defun helm-pinyin--advice-match-functions (return)
-  "Advice to pre-append pinyin match to the RETURN of `helm-match-functions'."
-  (append '(helm-pinyin-mm-match) return))
-
-(defvar helm-pinyin-enabled-sources '("Find Files" "Buffers" "Recentf"))
+(defun helm-pinyin--advice-match-functions (orig-fn source)
+  "Advice to pre-append pinyin match to the return of `helm-match-functions'."
+  (let ((return (funcall orig-fn source)))
+    (if (helm-pinyin--compute-rules source)
+        (append '(helm-pinyin-mm-match) return)
+      return)))
 
 (defun helm-pinyin--advice-compute-matches (source)
   "Advice to do some initialization before `helm-compute-matches'."
@@ -215,8 +344,10 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
   :require 'helm-pinyin
   (if helm-pinyin-mode
       (progn
+        (advice-add 'helm-initialize
+                    :around #'helm-pinyin--advice-initialize)
         (advice-add 'helm-match-functions
-                    :filter-return #'helm-pinyin--advice-match-functions)
+                    :around #'helm-pinyin--advice-match-functions)
         (advice-add 'helm-fuzzy-default-highlight-match
                     :around #'helm-pinyin--advice-fuzzy-default-highlight-match)
         (advice-add 'helm--collect-matches
@@ -229,6 +360,8 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
                     :before #'helm-pinyin--initials-before-collecting)
         (advice-add 'helm-display-mode-line
                     :around #'helm-pinyin--advice-set-default-prompt-display))
+    (advice-remove 'helm-initialize
+                   #'helm-pinyin--advice-initialize)
     (advice-remove 'helm-match-functions
                    #'helm-pinyin--advice-match-functions)
     (advice-remove 'helm-fuzzy-default-highlight-match
