@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2020/10/07
 ;; Version: 0.3.0
-;; Last-Updated: 2023-06-03 16:06:09 +0800
+;; Last-Updated: 2023-06-08 16:34:07 +0800
 ;;           by: Gong Qijian
 ;; Package-Requires: ((emacs "25.1"))
 ;; URL: https://github.com/twlz0ne/helm-pinyin
@@ -145,12 +145,12 @@ These are the currently supported rules:
         intvls)))
   "Return text properties of OBJECT.")
 
-(defun helm-pinyin-convert-to-pinyin (candidate)
+(defun helm-pinyin-convert-to-pinyin (candidate &optional basenamep)
   "Convert chinese characters in CANDIDATE to pinyin."
-  (let ((part (helm-basename candidate))
+  (let ((part (if basenamep candidate (helm-basename candidate)))
         (pynum 0))
     (cons
-     (concat (helm-basedir candidate)
+     (concat (unless basenamep (helm-basedir candidate))
              (string-join
               (cl-loop for idx from 0 to (1- (length part))
                        collect
@@ -258,18 +258,24 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
   "Advice to highlight chinese characters matched by pinyin."
   (if-let ((input-pinyin-p helm-pinyin-input-pinyin-p)
            (candtmp (if (consp candidate) (car candidate) candidate))
-           (candpy (assoc-default (if helm-pinyin-buffers-source-p
-                                      (string-trim-right candtmp)
-                                    candtmp)
-                                  helm-pinyin-matched-candidate-alist)))
+           (candpy
+            (if helm-pinyin-buffers-source-p
+                (let* ((help-echo (get-text-property 0 'help-echo candtmp))
+                       (buffer-name (buffer-name (get-file-buffer help-echo))))
+                  (assoc-default buffer-name helm-pinyin-matched-candidate-alist))
+              (assoc-default candtmp helm-pinyin-matched-candidate-alist))))
       (progn
         (setq candtmp (substring candtmp)) ;; Use the copy to apply properties.
-        (dolist (intvl (helm-pinyin-text-properties (apply orig-fn candpy rest)))
-          (pcase intvl
-            (`(,beg ,end ,props)
-              (when (and (memq 'face props)
-                         (memq 'helm-match props))
-                (helm-add-face-text-properties beg end 'helm-match nil candtmp)))))
+        (catch 'break
+          (dolist (intvl (helm-pinyin-text-properties (apply orig-fn candpy rest)))
+            (pcase intvl
+              (`(,beg ,end ,props)
+                (when (and (memq 'face props)
+                           (memq 'helm-match props))
+                  (condition-case _
+                      (helm-add-face-text-properties beg end 'helm-match nil candtmp)
+                    (args-out-of-range ;; Break if the candidate is truncated
+                     (throw 'break nil))))))))
         (put-text-property 0 (length candpy) 'display candtmp candpy)
         (if (consp candidate)
             (cons candtmp (cdr candidate))
@@ -289,7 +295,8 @@ WHERE using FN-ADVICE temporarily added to FN-ORIG."
 
 (cl-defun helm-pinyin-mm-match (candidate &optional (pattern helm-pattern))
   "Call all match functions with pinyin of CANDIDATE."
-  (let* ((pycand (helm-pinyin-convert-to-pinyin candidate))
+  (let* ((pycand (helm-pinyin-convert-to-pinyin
+                  candidate helm-pinyin-buffers-source-p))
          matched)
     (catch 'break
       (dolist (matchfn helm-pinyin-original-match-functions)
